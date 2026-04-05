@@ -16,9 +16,12 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-      console.warn("Session expired or Forbidden. Redirecting to login...");
-      localStorage.removeItem('token');
-      window.location.href = '/login';
+      // Don't redirect if it's the login attempt failing
+      if (!error.config.url.includes('/auth/login')) {
+        console.warn("Session expired. Redirecting to login...");
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }

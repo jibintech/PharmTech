@@ -43,7 +43,7 @@ public class DataLoader implements CommandLineRunner {
         }
 
         // Initial Medicines
-        if (medicineRepository.count() < 10) {
+        if (medicineRepository.count() < 15) {
             java.util.List<Medicine> newMeds = new java.util.ArrayList<>();
             
             addIfMissing(newMeds, "Paracetamol 500mg", "GSK India", "15.50", 100, 12);
@@ -56,6 +56,11 @@ public class DataLoader implements CommandLineRunner {
             addIfMissing(newMeds, "Okacet (Cetirizine)", "Cipla", "1.80", 500, 24);
             addIfMissing(newMeds, "Dolo 650", "Micro Labs", "2.00", 400, 12);
             addIfMissing(newMeds, "Vicks Action 500", "P&G", "5.00", 120, 12);
+            addIfMissing(newMeds, "Quitipin 100mg", "Sun Pharma", "85.00", 60, 18);
+            addIfMissing(newMeds, "Levogen 5mg", "GlaxoSmithKline", "45.00", 120, 24);
+            addIfMissing(newMeds, "Thyronorm 50mcg", "Abbott India", "190.00", 90, 36);
+            addIfMissing(newMeds, "Revital Capsules", "Sun Pharma", "120.00", 200, 24);
+            addIfMissing(newMeds, "Limcee Vit-C", "Abbott", "2.50", 1000, 24);
 
             if (!newMeds.isEmpty()) {
                 medicineRepository.saveAll(newMeds);

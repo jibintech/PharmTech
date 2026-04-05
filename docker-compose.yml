@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  database:
+    image: mysql:9.0
+    container_name: pharmtech-db
+    environment:
+      MYSQL_DATABASE: pharmtech_db
+      MYSQL_USER: pharmtech_user
+      MYSQL_PASSWORD: pharmtech_password
+      MYSQL_ROOT_PASSWORD: root_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+
+  backend:
+    build: 
+      context: ./backend/pharmtech
+    container_name: pharmtech-backend
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://database:3306/pharmtech_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&createDatabaseIfNotExist=true
+      - SPRING_DATASOURCE_USERNAME=pharmtech_user
+      - SPRING_DATASOURCE_PASSWORD=pharmtech_password
+      - GEMINI_API_KEY=use_gemini_api_key_here
+    depends_on:
+      - database
+
+  frontend:
+    build:
+      context: ./frontend/PharmTech
+    container_name: pharmtech-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  db_data:

@@ -28,7 +28,7 @@ const LoginPage = () => {
         navigate('/biller/dashboard');
       }
     } catch (err) {
-      setError('Invalid username or password');
+      setError('Incorrect Password or User');
     } finally {
       setLoading(false);
     }
@@ -58,11 +58,12 @@ const LoginPage = () => {
           {error && (
             <motion.div
               initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="mb-6 p-4 rounded-xl bg-red-50 border border-red-100 flex items-center gap-3"
+              animate={{ opacity: 1, x: [0, -10, 10, -10, 10, 0] }}
+              transition={{ duration: 0.4 }}
+              className="mb-6 p-4 rounded-xl bg-red-50 border border-red-100 flex items-center gap-3 shadow-sm"
             >
-              <div className="w-2 h-2 rounded-full bg-red-400" />
-              <p className="text-red-600 text-sm font-medium">{error}</p>
+              <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+              <p className="text-red-600 text-xs font-bold uppercase tracking-wider">{error}</p>
             </motion.div>
           )}
 

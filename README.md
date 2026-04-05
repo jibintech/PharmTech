@@ -1,6 +1,6 @@
 # PharmTech 💊
 
-PharmTech is a comprehensive, full-stack Pharmacy Management and Billing System. Designed with a modern, responsive user interface, it streamlines pharmacy operations, from inventory management to prescription processing and billing. The application is localized for the Indian market, featuring integrated GST calculations, Rupee formatting, and UPI payment Selection support.
+PharmTech is a comprehensive, full-stack Pharmacy Management and Billing System. Designed with a modern, responsive user interface, it streamlines pharmacy operations, from inventory management to prescription processing and billing. The application is localized for the Indian market, featuring integrated GST calculations, Rupee formatting, and payment Selection support.
 
 ## 🚀 Key Features
 

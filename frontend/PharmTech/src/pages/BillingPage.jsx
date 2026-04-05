@@ -22,6 +22,7 @@ const BillingPage = () => {
   const [search, setSearch] = useState('');
   const [ocrLoading, setOcrLoading] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date().toLocaleDateString('en-GB'));
+  const [scanResults, setScanResults] = useState(null);
   const fileInputRef = useRef();
   const { logout, user } = useAuth();
   const navigate = useNavigate();
@@ -41,35 +42,73 @@ const BillingPage = () => {
     }
   };
 
+  const compressImage = async (file) => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (e) => {
+        const img = new Image();
+        img.src = e.target.result;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 1200; 
+          const scale = Math.min(1, MAX_WIDTH / img.width);
+          canvas.width = img.width * scale;
+          canvas.height = img.height * scale;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob((blob) => resolve(new File([blob], file.name, { type: 'image/jpeg' })), 'image/jpeg', 0.8);
+        };
+      };
+    });
+  };
+
   const handleOcrUpload = async (e) => {
+    if (ocrLoading) return; // Prevent double-scans if already working
     const file = e.target.files[0];
     if (!file) return;
+    
     setOcrLoading(true);
-    const formData = new FormData();
-    formData.append('file', file);
     try {
+      const compressedFile = await compressImage(file);
+      const formData = new FormData();
+      formData.append('file', compressedFile);
+      
       const response = await ocrAPI.extract(formData);
       if (response.data.identifiedMedicines?.length > 0) {
-        response.data.identifiedMedicines.forEach(m => addToBill(m));
-        alert(`${response.data.identifiedMedicines.length} items added.`);
+        setScanResults(response.data.identifiedMedicines);
       } else {
-        alert('No matches.');
+        const text = response.data.extractedText || "No text detected";
+        alert(`No matches found in stock.\n\nAI Detected: "${text}"`);
       }
-    } catch (err) { alert('OCR Failed'); }
-    finally { setOcrLoading(false); }
+    } catch (err) { 
+        alert('Extraction failed. Please wait a moment and try again.'); 
+    }
+    finally { 
+      setOcrLoading(false); 
+      e.target.value = ''; // Reset input so same file can be selected again
+    }
+  };
+
+  const addAllFromScan = () => {
+    if (!scanResults) return;
+    scanResults.forEach(m => addToBill(m));
+    setScanResults(null);
   };
 
   const addToBill = (medicine, quantity = 1) => {
-    const existing = billItems.find(item => Number(item.medicine.id) === Number(medicine.id));
-    if (existing) {
-      setBillItems(billItems.map(item => 
-        Number(item.medicine.id) === Number(medicine.id) 
-          ? { ...item, quantity: item.quantity + quantity }
-          : item
-      ));
-    } else {
-      setBillItems([...billItems, { medicine, quantity, price: medicine.unitPrice }]);
-    }
+    setBillItems(prevItems => {
+        const existing = prevItems.find(item => Number(item.medicine.id) === Number(medicine.id));
+        if (existing) {
+            return prevItems.map(item => 
+                Number(item.medicine.id) === Number(medicine.id) 
+                ? { ...item, quantity: item.quantity + quantity }
+                : item
+            );
+        } else {
+            return [...prevItems, { medicine, quantity, price: medicine.unitPrice }];
+        }
+    });
   };
 
   const updateQuantity = (id, delta) => {
@@ -410,6 +449,75 @@ const BillingPage = () => {
             </div>
         </div>
       </aside>
+
+      {/* Scan Results Modal */}
+      <AnimatePresence>
+        {scanResults && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setScanResults(null)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative w-full max-w-md bg-white rounded-[32px] shadow-2xl overflow-hidden"
+            >
+              <div className="p-8">
+                <div className="flex justify-between items-center mb-6">
+                  <div>
+                    <h2 className="text-xl font-bold text-slate-800 tracking-tight">Prescription Detected</h2>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">Verify matches from AI Scan</p>
+                  </div>
+                  <button onClick={() => setScanResults(null)} className="p-2 hover:bg-slate-50 rounded-xl transition-colors">
+                    <X className="w-5 h-5 text-slate-400" />
+                  </button>
+                </div>
+
+                <div className="space-y-3 mb-8">
+                  {scanResults.map((med) => (
+                    <div key={med.id} className="flex items-center justify-between p-4 bg-slate-50 border border-slate-100 rounded-2xl">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
+                          <CheckCircle className="w-5 h-5 text-green-600" />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-bold text-slate-800">{med.name}</h4>
+                          <p className="text-[9px] text-slate-400 font-medium">{med.manufacturer}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] font-bold text-slate-900">₹{med.unitPrice}</p>
+                        <p className="text-[8px] text-green-600 font-black uppercase">In Stock</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => setScanResults(null)}
+                    className="flex-1 py-4 bg-slate-50 text-slate-500 rounded-2xl font-bold text-[10px] uppercase tracking-widest hover:bg-slate-100 transition-all border border-slate-100"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={addAllFromScan}
+                    className="flex-[2] py-4 bg-green-600 text-white rounded-2xl font-bold text-[10px] uppercase tracking-widest hover:bg-green-700 transition-all flex items-center justify-center gap-2 shadow-xl shadow-green-100"
+                  >
+                    <Plus className="w-4 h-4" /> Add All Matched
+                  </button>
+                </div>
+                <p className="text-center text-[10px] text-slate-400 mt-6 font-medium italic">
+                  Note: Only items currently in stock are listed here.
+                </p>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

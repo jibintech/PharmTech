@@ -46,55 +46,77 @@ public class MedicineService {
         medicineRepository.delete(medicine);
     }
 
-    // Advanced fuzzy search algorithm to identify medicines from OCR text
+    // Finalized OCR matching algorithm: Stepped confidence approach (100% down to 50%)
     public List<Medicine> identifyMedicinesFromText(String extractedText) {
-        if (extractedText == null || extractedText.trim().isEmpty()) {
+        if (extractedText == null || extractedText.trim().isEmpty() || 
+            extractedText.equalsIgnoreCase("NONE") || 
+            extractedText.startsWith("GEMINI_")) {
             return new ArrayList<>();
         }
 
         List<Medicine> allMedicines = medicineRepository.findAll();
-        Set<Medicine> uniqueMedicines = new HashSet<>();
         
-        // Normalize OCR text
-        String upperText = extractedText.toUpperCase().replaceAll("[^A-Z0-9 ]", " ");
-        String[] ocrWords = upperText.split("\\s+");
+        // 1. Pre-process scanned text
+        String cleanOcr = extractedText.toUpperCase().replaceAll("[^A-Z0-9 ]", " ").replaceAll("\\s+", " ").trim();
+        String superCleanOcr = cleanOcr.replaceAll(" ", "");
+        String[] ocrWords = cleanOcr.split(" ");
         
-        for (Medicine m : allMedicines) {
-            String medName = m.getName().toUpperCase();
+        System.out.println("OCR Matching: Stepped scan start. Text: [" + extractedText + "]");
+
+        // Requirement: Decreasing threshold from 100% (1.0) down to 50% (0.5)
+        double[] thresholds = {1.0, 0.9, 0.8, 0.7, 0.6, 0.5};
+        
+        for (double threshold : thresholds) {
+            Set<Medicine> identified = new HashSet<>();
             
-            // 1. Direct match
-            if (upperText.contains(medName)) {
-                uniqueMedicines.add(m);
-                continue;
-            } 
-            
-            // 2. Fuzzy Token Match (Check each word in OCR against medicine name)
-            boolean found = false;
-            for (String ocrWord : ocrWords) {
-                if (ocrWord.length() < 3) continue;
-                
-                // Lowered threshold (0.6) to be more tolerant of OCR errors
-                if (calculateSimilarity(ocrWord, medName) > 0.6) {
-                    found = true;
-                    break;
-                }
-                
-                String[] medWords = medName.split("\\s+");
-                for (String medWord : medWords) {
-                    if (medWord.length() < 3) continue;
-                    if (calculateSimilarity(ocrWord, medWord) > 0.6) {
-                        found = true;
-                        break;
+            for (Medicine m : allMedicines) {
+                if (m.getStockQuantity() == null || m.getStockQuantity() <= 0) continue;
+
+                String originalName = m.getName().toUpperCase();
+                String cleanName = originalName.replaceAll("[^A-Z0-9 ]", " ").replaceAll("\\s+", " ").trim();
+                String superCleanName = cleanName.replaceAll(" ", "");
+
+                // Case A: Higher confidence Check (Direct or super-clean)
+                if (threshold >= 0.9) {
+                    if (cleanOcr.contains(cleanName) || superCleanOcr.contains(superCleanName)) {
+                        identified.add(m);
+                        continue;
                     }
                 }
-                if (found) break;
+
+                // Case B: Component Matching at current threshold
+                String[] nameParts = cleanName.split(" ");
+                int matchedParts = 0;
+                for (String part : nameParts) {
+                    if (part.length() < 2) continue;
+
+                    boolean partFound = false;
+                    for (String word : ocrWords) {
+                        if (word.length() < 2) continue;
+                        
+                        double similarity = calculateSimilarity(word, part);
+                        if (similarity >= threshold || word.contains(part) || part.contains(word)) {
+                            partFound = true;
+                            break;
+                        }
+                    }
+                    if (partFound) matchedParts++;
+                }
+
+                // Check if current part-match ratio meets the threshold
+                if (nameParts.length > 0 && (double) matchedParts / nameParts.length >= threshold) {
+                    identified.add(m);
+                }
             }
             
-            if (found) {
-                uniqueMedicines.add(m);
+            // If we found ANY matches at this confidence level, take them and stop
+            if (!identified.isEmpty()) {
+                System.out.println("OCR Matching: Found " + identified.size() + " medicines at " + (int)(threshold*100) + "% confidence!");
+                return new ArrayList<>(identified);
             }
         }
-        return new ArrayList<>(uniqueMedicines);
+        
+        return new ArrayList<>();
     }
 
     private double calculateSimilarity(String s1, String s2) {
